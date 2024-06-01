@@ -2,6 +2,32 @@ import fenics as fe
 import numpy as np
 
 
+
+
+def apply_zero_velocity_bc(mesh, W, threshold):
+    # Define the solid region
+    solid_subdomain = Solid(threshold)
+    
+    # Mark the solid region
+    solid_markers = fe.MeshFunction("size_t", mesh, mesh.topology().dim(), 0)
+    solid_subdomain.mark(solid_markers, 1)
+    
+    # Create a MeshFunction to mark the facets (boundaries) of the solid region
+    facet_markers = fe.MeshFunction("size_t", mesh, mesh.topology().dim() - 1, 0)
+    for facet in fe.facets(mesh):
+        cells = [cell for cell in fe.cells(facet)]
+        if any(solid_markers[cell.index()] == 1 for cell in cells):
+            facet_markers[facet] = 1
+    
+    # Apply the Dirichlet boundary condition
+    bc_solid = fe.DirichletBC(W.sub(0), fe.Constant((0.0, 0.0)), facet_markers, 1)
+    return bc_solid
+
+
+
+def smooth_heaviside(phi, threshold, epsilon):
+    return 0.5 * (1 + (fe.exp((phi - threshold) / epsilon) - fe.exp(-(phi - threshold) / epsilon)) / (fe.exp((phi - threshold) / epsilon) + fe.exp(-(phi - threshold) / epsilon)))
+
 Bc = None
 
 class InflowProfile(fe.UserExpression):
@@ -32,6 +58,15 @@ class InitialConditions_ns(fe.UserExpression):
 
     def value_shape(self):
         return (3,)
+
+class Solid(fe.SubDomain):
+    def __init__(self, threshold):
+        super().__init__()
+        self.threshold = threshold
+
+    def inside(self, x, on_boundary):
+        return x[1] < self.threshold
+    
 
 def define_variables_ns(mesh):
 
@@ -125,20 +160,24 @@ def F2(variables_dict, physical_parameters_dict):
     Coeff2_Bou_NS = SP * (rho_solid - rho_liquid) / rho_liquid * gravity
     ##########
     dy_mu = viscosity_liquid/rho_liquid ########## changed 
-    beta = 1E6  # Large penalization parameter
+    beta = 1E10  # Large penalization parameter
     threshold = 1  # Threshold close to 1 for activation
-    penalization_term = fe.conditional(phi >= threshold, beta * (1 + phi) / 2 , 0)* u_answer
+    # penalization_term = fe.conditional(phi >= threshold, beta * (1 + phi) / 2 , 0)* u_answer
+
+    epsilon0 = 0.01  # Smoothing parameter
+    penalization_term = beta * smooth_heaviside(phi, threshold, epsilon0) * u_answer
+
     F2 = (
         fe.inner((u_answer - u_prev) / dt, test_1) 
         + fe.inner(fe.dot(u_answer, fe.grad(u_answer)), test_1) 
         + dy_mu * fe.inner(sigma(u_answer, p_answer), epsilon(test_1)) 
-        + fe.inner(penalization_term, test_1)  # Penalization term subtracted
+        # + fe.inner(penalization_term, test_1)  # Penalization term subtracted
         # - fe.inner( Coeff2_Bou_NS , test_1[1] ) #bouyancy
     ) * fe.dx
     return F2
 
 
-def define_boundary_condition_ns(variables_dict, physical_parameters_dict) :
+def define_boundary_condition_ns(variables_dict, physical_parameters_dict, mesh) :
     global Bc
     Nx = physical_parameters_dict['Nx']
     Ny = physical_parameters_dict['Ny']
@@ -152,6 +191,11 @@ def define_boundary_condition_ns(variables_dict, physical_parameters_dict) :
         ('(x[1] <= max_y) ? 0.0 : vel_x', '0.0'),
         vel_x=vel_x, max_y=max_y, degree=2
     )
+
+    bc_solid = apply_zero_velocity_bc(mesh, W, max_y)
+
+    # bc_solid = fe.DirichletBC(W.sub(0), fe.Constant((0.0, 0.0)), facet_markers, 1)
+
     # Define boundaries
     inflow = f'near(x[0], {X0})'
     outflow = f'near(x[0], {X1})'
@@ -160,7 +204,7 @@ def define_boundary_condition_ns(variables_dict, physical_parameters_dict) :
     bcu_inflow = fe.DirichletBC(W.sub(0), inflow_profile, inflow)
     bcu_walls = fe.DirichletBC(W.sub(0), fe.Constant((0, 0)), walls)
     bcp_outflow = fe.DirichletBC(W.sub(1), fe.Constant(0), outflow)
-    Bc = [bcu_inflow, bcu_walls, bcp_outflow]
+    Bc = [bcu_inflow, bcu_walls, bcp_outflow, bc_solid]
     return  Bc
 
 def define_problem_ns(L, variables_dict, physical_parameters_dict):
@@ -221,7 +265,7 @@ def update_solver_on_new_mesh_ns(mesh, physical_parameters_dict, old_solution_ve
         fe.LagrangeInterpolator.interpolate(solution_vector_ns_0, old_solution_vector_0_ns)
 
         # define the new boundary condition after mesh refinement:
-        Bc = define_boundary_condition_ns(variables_dict, physical_parameters_dict)
+        Bc = define_boundary_condition_ns(variables_dict, physical_parameters_dict, mesh)
 
         # gettting the old solution vector for the phase field and concentration field on ns mesh:
         phi_prev, u_prev = old_solution_vector_0_pf.split(deepcopy=True)
@@ -261,7 +305,7 @@ def update_solver_on_new_mesh_ns(mesh, physical_parameters_dict, old_solution_ve
         solution_vector_ns.interpolate(initial_conditions)
 
         # define the new boundary condition after mesh refinement:
-        Bc = define_boundary_condition_ns(variables_dict, physical_parameters_dict)
+        Bc = define_boundary_condition_ns(variables_dict, physical_parameters_dict, mesh)
 
 
         # define the new forms after mesh refinement:
@@ -294,7 +338,7 @@ def update_solver_on_new_mesh_ns(mesh, physical_parameters_dict, old_solution_ve
         fe.LagrangeInterpolator.interpolate(u_prev_interpolated_on_ns_mesh , u_prev)
 
         # define boundary condition:
-        Bc = define_boundary_condition_ns(variables_dict, physical_parameters_dict)
+        Bc = define_boundary_condition_ns(variables_dict, physical_parameters_dict, mesh)
 
 
         # define the new forms after mesh refinement:

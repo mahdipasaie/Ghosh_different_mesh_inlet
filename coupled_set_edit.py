@@ -83,12 +83,12 @@ def reynolds_number(density, velocity, length, dynamic_viscosity):
 physical_parameters_dict = {
     "dy": 0.8 ,
     "max_level": 5, # coarsening
-    "level_start_pf": 2, # refining 
-    "level_ns": 1, # refining 
+    "level_start_pf": 3, # refining 
+    "level_ns": 2, # refining  for ns around the interface
     "Nx":500,
     "Ny": 3000,
     "dt": 13E-2,
-    "y_solid": 2,
+    "y_solid": 10,
     "a1": 0.8839,
     "a2": 0.6637,
     "w0": 1,
@@ -160,6 +160,7 @@ viscosity_liquid = physical_parameters_dict['viscosity_liquid'](mu_fluid)
 # Calculated values
 Domain = physical_parameters_dict["Domain"](Nx, Ny)
 physical_parameters_dict["max_y"] = y_solid + 10*dy
+max_y = y_solid + 10*dy
 # Create the mesh
 dy_coarse = 2**( max_level ) * dy
 nx = (int)(Nx/ dy ) 
@@ -175,7 +176,7 @@ coarse_mesh = fe.RectangleMesh( fe.Point(0.0 , 0.0 ), fe.Point(Nx, Ny), nx_coars
 coarse_mesh_init = fe.RectangleMesh( fe.Point(0.0 , 0.0 ), fe.Point(Nx, Ny), nx_coarse_init, ny_coarse_init  )
 Domain = [ (0.0, 0.0 ) , ( Nx, Ny ) ]
 mesh = refine_mesh_local(coarse_mesh_init ,y_solid + 10*dy ,level_start_pf)
-mesh_ns = refine_mesh_local_top(coarse_mesh_init ,y_solid ,level_ns)
+mesh_ns = refine_mesh_ranage(coarse_mesh, y_solid, 5*dy , level_ns)
 mesh_pf = mesh
 #############################  END  ################################
 
@@ -336,7 +337,7 @@ for it in tqdm( range(0, 10000000) ):
         mesh_pf, mesh_info, max_y = refine_mesh(physical_parameters_dict, coarse_mesh, solution_vector_pf, spaces_pf, solution_vector_ns, space_ns, comm )
         physical_parameters_dict["max_y"] = max_y
         # update the mesh Navier-Stokes
-        mesh_ns = refine_mesh_ranage(coarse_mesh, max_y, 5*dy , level_ns)
+        mesh_ns = refine_mesh_ranage(coarse_mesh, max_y, 20*dy , level_ns)
         # define problem on the new mesh
         ns_problem_dict = update_solver_on_new_mesh_ns(mesh_ns, physical_parameters_dict,
                                      old_solution_vector_ns= old_solution_vector_ns, old_solution_vector_0_ns= old_solution_vector_0_ns, 
@@ -393,7 +394,7 @@ for it in tqdm( range(0, 10000000) ):
 
 
     ####### write first solution to file ########
-    if it % 5 == 0: 
+    if it % 1 == 0: 
         solution_vectors = [solution_vector_ns_0, solution_vector_pf_0]
         extra_funcs_dict_pf = {"velocity_PF": vel_answer_on_pf_mesh}  # Assuming these are defined
         write_simulation_data_to_files(solution_vectors, T, file_ns, file_pf, variable_names_list_ns, variable_names_list_pf, extra_funcs_dict_ns, extra_funcs_dict_pf)
