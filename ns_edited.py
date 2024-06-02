@@ -171,7 +171,7 @@ def F2(variables_dict, physical_parameters_dict):
         fe.inner((u_answer - u_prev) / dt, test_1) 
         + fe.inner(fe.dot(u_answer, fe.grad(u_answer)), test_1) 
         + dy_mu * fe.inner(sigma(u_answer, p_answer), epsilon(test_1)) 
-        # + fe.inner(penalization_term, test_1)  # Penalization term subtracted
+        + fe.inner(penalization_term, test_1)  # Penalization term subtracted
         # - fe.inner( Coeff2_Bou_NS , test_1[1] ) #bouyancy
     ) * fe.dx
     return F2

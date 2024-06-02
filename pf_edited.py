@@ -133,7 +133,7 @@ def calculate_dependent_variables(variables_dict_pf, physical_parameters_dict):
         'W_n': W_n
     }
 
-def calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_parameters_dict):
+def calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_parameters_dict, mesh):
 
     phi_answer = variables_dict_pf["phi_answer"]
     u_answer = variables_dict_pf["u_answer"]
@@ -153,6 +153,15 @@ def calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_paramet
     mgphi = dependent_var_dict['mgphi']
     w_n = dependent_var_dict['W_n']
     scaling_velocity = physical_parameters_dict['scaling_velocity']
+    G = physical_parameters_dict['G']
+    V = physical_parameters_dict['V']
+    m_l = physical_parameters_dict['m_l']
+    c_0 = physical_parameters_dict['c_0']
+    W_scale = physical_parameters_dict['W0_scale']
+    T = physical_parameters_dict['T']
+    Tau_scale = physical_parameters_dict['tau_0_scale']
+    X = fe.SpatialCoordinate(mesh)
+    Y = X[1]
 
     ##########remember to change this : 
 
@@ -167,9 +176,16 @@ def calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_paramet
 
     term3 = -(w_n**2 * fe.inner(fe.grad(phi_answer), fe.grad(v_test))) * fe.dx
 
+    # term2 = (
+    #     fe.inner(
+    #         (phi_answer - phi_answer**3) - lamda * u_answer  * (1 - phi_answer**2) ** 2,
+    #         v_test,
+    #     ) * fe.dx
+    # )
+
     term2 = (
         fe.inner(
-            (phi_answer - phi_answer**3) - lamda * u_answer  * (1 - phi_answer**2) ** 2,
+            (phi_answer - phi_answer**3) - lamda * (u_answer  + (G* W_scale)* ( Y - V* (T*Tau_scale/W_scale) )/ (m_l* c_0/k_eq * (1-k_eq))  ) * (1 - phi_answer**2) ** 2,
             v_test,
         ) * fe.dx
     )
@@ -303,7 +319,7 @@ def update_solver_on_new_mesh_pf(mesh, physical_parameters_dict, old_solution_ve
 
 
         # Calculate equation 1 and 2
-        eq1 = calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_parameters_dict)
+        eq1 = calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_parameters_dict, mesh)
         eq2 = calculate_equation_2(variables_dict_pf, physical_parameters_dict, dependent_var_dict)
 
         # Define the combined weak form
@@ -351,7 +367,7 @@ def update_solver_on_new_mesh_pf(mesh, physical_parameters_dict, old_solution_ve
 
 
         # Calculate equation 1 and 2
-        eq1 = calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_parameters_dict)
+        eq1 = calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_parameters_dict, mesh)
         eq2 = calculate_equation_2(variables_dict_pf, physical_parameters_dict, dependent_var_dict)
 
         # Define the combined weak form
@@ -396,7 +412,7 @@ def update_solver_on_new_mesh_pf(mesh, physical_parameters_dict, old_solution_ve
 
 
         # Calculate equation 1 and 2
-        eq1 = calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_parameters_dict)
+        eq1 = calculate_equation_1(variables_dict_pf, dependent_var_dict, physical_parameters_dict, mesh)
         eq2 = calculate_equation_2(variables_dict_pf, physical_parameters_dict, dependent_var_dict)
 
         # Define the combined weak form

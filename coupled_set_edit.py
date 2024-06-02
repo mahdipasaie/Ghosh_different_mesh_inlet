@@ -97,7 +97,7 @@ physical_parameters_dict = {
     "W0_scale":  1E-8,#m
     "tau_0_scale": 2.30808E-8,#s
     "G": 1E7 , # k/m # it should be non-dimensionlized or y should be in meter in equation
-    "V": 1E-1 , # m/s # do not scale the time cause the time is scaled in eqution 
+    "V": 3E-2 , # m/s # do not scale the time cause the time is scaled in eqution 
     "m_l": 10.5,# K%-1 
     "ep_4": 0.03,
     "k_eq": 0.14,
@@ -116,10 +116,10 @@ physical_parameters_dict = {
     "mu_fluid": lambda tau_0_scale, W0_scale:  4.88E-3*(tau_0_scale)/(W0_scale ** 2), #  (Pa.s) or (Kg/(m.s) )
     "viscosity_liquid": lambda mu_fluid: mu_fluid,
     "vel_x": 0.01, 
-    "scaling_velocity": 1,
+    "scaling_velocity": fe.Constant(0),
     ###################### SOLVER PARAMETERS ######################
-    "abs_tol_pf": 1E-4,  
-    "rel_tol_pf": 1E-3,  
+    "abs_tol_pf": 1E-6,  
+    "rel_tol_pf": 1E-5,  
     "abs_tol_ns": 1E-4,  
     "rel_tol_ns": 1E-3,  
     'linear_solver_ns': 'gmres', 
@@ -138,7 +138,8 @@ physical_parameters_dict = {
 }
 
 
-
+T = 0
+physical_parameters_dict["T"] = T
 scaling_velocity = physical_parameters_dict['scaling_velocity']
 level_start_pf = physical_parameters_dict['level_start_pf']
 level_ns = physical_parameters_dict['level_ns']
@@ -267,8 +268,8 @@ def update_time_step(physical_parameters_dict, solver_pf_information, solver_ns_
     return dt
 
 # Usage Example:
-file_ns = fe.XDMFFile( "Test_ns.xdmf" )
-file_pf = fe.XDMFFile( "Test_pf.xdmf" )
+file_ns = fe.XDMFFile( "Test_ns_2.xdmf" )
+file_pf = fe.XDMFFile( "Test_pf_2.xdmf" )
 
 
 ##############################################################
@@ -302,7 +303,7 @@ variables_dict_pf = pf_problem_dict["variables_dict_pf"]
 vel_answer_on_pf_mesh = pf_problem_dict["vel_answer_on_pf_mesh"]
 
 
-T = 0
+
 ####### write first solution to file ########
 solution_vectors = [solution_vector_ns_0, solution_vector_pf_0]
 variable_names_list_pf = ["Phi", "U"]
@@ -328,6 +329,7 @@ for it in tqdm( range(0, 10000000) ):
     solution_vector_pf_0.assign(solution_vector_pf)
 
     T += dt
+    physical_parameters_dict["T"] = T
 
 
 
